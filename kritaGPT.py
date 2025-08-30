@@ -46,6 +46,10 @@ class KritaGPTDocker(DockWidget):
         self.processor.execution_completed.connect(self.on_execution_completed)
         self.processor.execution_error.connect(self.on_execution_error)
     
+    def canvasChanged(self, canvas):
+        """Required override for DockWidget - called when canvas changes"""
+        pass
+    
     def setup_ui(self, parent):
         """Setup the user interface"""
         layout = QVBoxLayout(parent)
