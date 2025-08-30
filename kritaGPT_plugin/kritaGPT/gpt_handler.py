@@ -9,8 +9,15 @@ from typing import Optional, Dict, List
 from krita import Krita
 
 try:
+    import sys
+    import os
+    # Add Krita's site-packages to path if not already there
+    site_packages = r"C:\Program Files\Krita (x64)\lib\site-packages"
+    if os.path.exists(site_packages) and site_packages not in sys.path:
+        sys.path.insert(0, site_packages)
     import openai
-except ImportError:
+except ImportError as e:
+    print(f"OpenAI import error: {e}")
     openai = None
 
 from .config import SYSTEM_PROMPT
@@ -23,8 +30,7 @@ class GPTHandler:
         self.temperature = temperature
         self.chat_history = []
         
-        if openai and api_key:
-            openai.api_key = api_key
+        # Note: In OpenAI v1.0+, api_key is passed to the client, not set globally
     
     def get_context(self) -> Dict:
         """Get current Krita context information"""
@@ -147,8 +153,9 @@ class GPTHandler:
             # Add current command
             messages.append({"role": "user", "content": prompt})
             
-            # Call OpenAI API
-            response = openai.ChatCompletion.create(
+            # Call OpenAI API (v1.0+ syntax)
+            client = openai.OpenAI(api_key=self.api_key)
+            response = client.chat.completions.create(
                 model=self.model,
                 messages=messages,
                 temperature=self.temperature,
@@ -190,8 +197,7 @@ class GPTHandler:
     def set_api_key(self, api_key: str):
         """Update API key"""
         self.api_key = api_key
-        if openai:
-            openai.api_key = api_key
+        # Note: In OpenAI v1.0+, api_key is passed to the client, not set globally
     
     def set_model(self, model: str):
         """Update model"""
