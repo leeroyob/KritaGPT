@@ -22,7 +22,6 @@ api_key.txt
 # Build files
 build/
 dist/
-*.zip
 *.egg-info/
 
 # OS
