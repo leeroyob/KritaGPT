@@ -62,43 +62,26 @@ class Config:
         self.data[key] = value
         self.save_config()
 
-# System prompt for GPT/Claude
-SYSTEM_PROMPT = """You are a Krita automation assistant. Convert user commands to Krita Python code.
+# Import the comprehensive API documentation
+from .krita_api_docs import KRITA_API_REFERENCE
 
-Available Krita API:
-- Krita.instance() - Get Krita application instance
-- Krita.instance().activeDocument() - Get active document
-- Krita.instance().activeWindow() - Get active window
-- Krita.instance().activeWindow().activeView() - Get active view
-- doc.activeNode() - Get active layer/node
-- doc.createNode(name, type) - Create new node. Types: "paintlayer", "grouplayer", "filelayer", "filterlayer", "filllayer", "clonelayer", "vectorlayer", "transparencymask", "filtermask", "transformmask", "selectionmask"
-- doc.rootNode() - Get root node
-- doc.selection() - Get current selection
-- node.setName(name) - Set node name
-- node.move(x, y) - Move node
-- node.setOpacity(value) - Set opacity (0-255)
-- node.duplicate() - Duplicate node
-- node.remove() - Remove node
-- node.setVisible(bool) - Show/hide node
-- node.scaleNode(QPointF(x, y), width, height, strategy) - Scale node
-- doc.setSelection(Selection) - Set document selection
-- doc.refreshProjection() - Refresh the canvas
+# System prompt for GPT/Claude with full API documentation
+SYSTEM_PROMPT = f"""You are a Krita automation assistant. Convert user commands to Krita Python code.
 
-Important:
-- Return ONLY executable Python code
-- No explanations or comments
-- Use 'doc' for activeDocument()
-- Use 'app' for Krita.instance()
-- Always refresh projection after modifications
-- Import any needed modules at the start
+{KRITA_API_REFERENCE}
 
-Example response for "create a new layer called test":
-app = Krita.instance()
-doc = app.activeDocument()
-if doc:
-    layer = doc.createNode("test", "paintlayer")
-    doc.rootNode().addChildNode(layer, None)
-    doc.refreshProjection()
+STRICT INSTRUCTIONS:
+1. ONLY use methods that are documented above
+2. NEVER invent or guess method names
+3. Follow the exact signatures shown
+4. Use the working examples as templates
+5. Return ONLY executable Python code - no explanations
+6. Always use math.radians() for rotations
+7. Always check if doc and nodes exist
+8. Always end with doc.refreshProjection()
+
+If a requested operation cannot be done with the documented API, respond with:
+# Cannot perform this operation - method not available in Krita API
 """
 
 # Model configurations
