@@ -35,7 +35,9 @@ class Config:
     def get_default_config(self):
         """Return default configuration"""
         return {
-            "api_key": "",
+            "api_provider": "openai",  # "openai" or "anthropic"
+            "openai_api_key": "",
+            "anthropic_api_key": "",
             "model": "gpt-4",
             "temperature": 0.1,
             "max_tokens": 1500,
@@ -47,6 +49,12 @@ class Config:
     
     def get(self, key, default=None):
         """Get configuration value"""
+        # Handle legacy configs
+        if key == "api_key" and "api_key" in self.data:
+            # Migrate old api_key to openai_api_key
+            self.data["openai_api_key"] = self.data.pop("api_key")
+            self.save_config()
+            return self.data.get("openai_api_key", default)
         return self.data.get(key, default)
     
     def set(self, key, value):
@@ -54,7 +62,7 @@ class Config:
         self.data[key] = value
         self.save_config()
 
-# System prompt for GPT
+# System prompt for GPT/Claude
 SYSTEM_PROMPT = """You are a Krita automation assistant. Convert user commands to Krita Python code.
 
 Available Krita API:
@@ -95,19 +103,33 @@ if doc:
 
 # Model configurations
 MODELS = {
-    "gpt-4": {
-        "name": "gpt-4",
-        "description": "Most capable, best for complex commands",
-        "cost_per_1k": 0.03
+    "openai": {
+        "gpt-4": {
+            "name": "gpt-4",
+            "description": "OpenAI GPT-4 - Most capable",
+            "cost_per_1k": 0.03
+        },
+        "gpt-4-turbo-preview": {
+            "name": "gpt-4-turbo-preview",
+            "description": "OpenAI GPT-4 Turbo - Faster",
+            "cost_per_1k": 0.01
+        },
+        "gpt-3.5-turbo": {
+            "name": "gpt-3.5-turbo",
+            "description": "OpenAI GPT-3.5 - Fast & cheap",
+            "cost_per_1k": 0.001
+        }
     },
-    "gpt-4-turbo-preview": {
-        "name": "gpt-4-turbo-preview",
-        "description": "Faster GPT-4, good balance",
-        "cost_per_1k": 0.01
-    },
-    "gpt-3.5-turbo": {
-        "name": "gpt-3.5-turbo",
-        "description": "Fast and cheap, good for simple commands",
-        "cost_per_1k": 0.001
+    "anthropic": {
+        "claude-3-5-sonnet-20241022": {
+            "name": "claude-3-5-sonnet-20241022",
+            "description": "Claude 3.5 Sonnet - Most capable",
+            "cost_per_1k": 0.003
+        },
+        "claude-3-haiku-20240307": {
+            "name": "claude-3-haiku-20240307",
+            "description": "Claude 3 Haiku - Fast & cheap",
+            "cost_per_1k": 0.00025
+        }
     }
 }

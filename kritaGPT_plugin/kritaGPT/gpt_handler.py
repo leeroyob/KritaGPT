@@ -1,6 +1,6 @@
 """
 GPT Handler Module for KritaGPT
-Manages communication with OpenAI API
+Manages communication with OpenAI and Anthropic APIs
 """
 
 import re
@@ -8,6 +8,7 @@ import json
 from typing import Optional, Dict, List
 from krita import Krita
 
+# Try to import both APIs
 try:
     import sys
     import os
@@ -20,17 +21,22 @@ except ImportError as e:
     print(f"OpenAI import error: {e}")
     openai = None
 
+try:
+    import anthropic
+except ImportError as e:
+    print(f"Anthropic import error: {e}")
+    anthropic = None
+
 from .config import SYSTEM_PROMPT
 
 class GPTHandler:
-    def __init__(self, api_key: str, model: str = "gpt-4", temperature: float = 0.1):
+    def __init__(self, provider: str = "openai", api_key: str = "", model: str = "gpt-4", temperature: float = 0.1):
         """Initialize GPT handler with API credentials"""
+        self.provider = provider
         self.api_key = api_key
         self.model = model
         self.temperature = temperature
         self.chat_history = []
-        
-        # Note: In OpenAI v1.0+, api_key is passed to the client, not set globally
     
     def get_context(self) -> Dict:
         """Get current Krita context information"""
@@ -100,7 +106,7 @@ class GPTHandler:
         return prompt
     
     def extract_code(self, response: str) -> str:
-        """Extract Python code from GPT response"""
+        """Extract Python code from GPT/Claude response"""
         # Try to find code blocks with ```python or ```
         code_pattern = r'```(?:python)?\n?(.*?)```'
         matches = re.findall(code_pattern, response, re.DOTALL)
@@ -121,8 +127,8 @@ class GPTHandler:
         
         return '\n'.join(code_lines)
     
-    def get_code(self, command: str, context: Optional[Dict] = None) -> Dict:
-        """Get Python code from GPT for the given command"""
+    def get_code_openai(self, command: str, context: Optional[Dict] = None) -> Dict:
+        """Get Python code from OpenAI GPT"""
         if not openai:
             return {
                 "success": False,
@@ -133,7 +139,7 @@ class GPTHandler:
         if not self.api_key:
             return {
                 "success": False,
-                "error": "No API key configured. Please set your OpenAI API key in settings.",
+                "error": "No OpenAI API key configured. Please set your API key in settings.",
                 "code": None
             }
         
@@ -190,6 +196,84 @@ class GPTHandler:
                 "code": None
             }
     
+    def get_code_anthropic(self, command: str, context: Optional[Dict] = None) -> Dict:
+        """Get Python code from Anthropic Claude"""
+        if not anthropic:
+            return {
+                "success": False,
+                "error": "Anthropic library not installed. Please install with: pip install anthropic",
+                "code": None
+            }
+        
+        if not self.api_key:
+            return {
+                "success": False,
+                "error": "No Anthropic API key configured. Please set your API key in settings.",
+                "code": None
+            }
+        
+        try:
+            # Build the prompt with context
+            prompt = self.build_prompt(command, context)
+            
+            # Create messages for Claude
+            messages = []
+            
+            # Add recent history for context (last 5 exchanges)
+            for msg in self.chat_history[-10:]:
+                messages.append({
+                    "role": msg["role"],
+                    "content": msg["content"]
+                })
+            
+            # Add current command
+            messages.append({"role": "user", "content": prompt})
+            
+            # Call Anthropic API
+            client = anthropic.Anthropic(api_key=self.api_key)
+            response = client.messages.create(
+                model=self.model,
+                system=SYSTEM_PROMPT,
+                messages=messages,
+                temperature=self.temperature,
+                max_tokens=1500
+            )
+            
+            # Extract the response
+            claude_response = response.content[0].text
+            
+            # Extract code from response
+            code = self.extract_code(claude_response)
+            
+            # Add to history
+            self.chat_history.append({"role": "user", "content": prompt})
+            self.chat_history.append({"role": "assistant", "content": code})
+            
+            # Keep history size manageable
+            if len(self.chat_history) > 20:
+                self.chat_history = self.chat_history[-20:]
+            
+            return {
+                "success": True,
+                "code": code,
+                "raw_response": claude_response,
+                "error": None
+            }
+            
+        except Exception as e:
+            return {
+                "success": False,
+                "error": str(e),
+                "code": None
+            }
+    
+    def get_code(self, command: str, context: Optional[Dict] = None) -> Dict:
+        """Get Python code from the configured API provider"""
+        if self.provider == "anthropic":
+            return self.get_code_anthropic(command, context)
+        else:
+            return self.get_code_openai(command, context)
+    
     def clear_history(self):
         """Clear chat history"""
         self.chat_history = []
@@ -197,7 +281,6 @@ class GPTHandler:
     def set_api_key(self, api_key: str):
         """Update API key"""
         self.api_key = api_key
-        # Note: In OpenAI v1.0+, api_key is passed to the client, not set globally
     
     def set_model(self, model: str):
         """Update model"""
@@ -206,3 +289,7 @@ class GPTHandler:
     def set_temperature(self, temperature: float):
         """Update temperature"""
         self.temperature = max(0.0, min(1.0, temperature))
+    
+    def set_provider(self, provider: str):
+        """Update API provider"""
+        self.provider = provider

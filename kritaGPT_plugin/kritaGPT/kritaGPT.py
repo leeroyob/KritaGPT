@@ -1,6 +1,6 @@
 """
 Main KritaGPT Plugin Module
-Natural language commands for Krita using GPT-4
+Natural language commands for Krita using GPT-4 and Claude
 """
 
 from krita import DockWidget, DockWidgetFactory, DockWidgetFactoryBase, Krita
@@ -136,34 +136,57 @@ class KritaGPTDocker(DockWidget):
         """Setup the settings interface"""
         layout = QVBoxLayout(parent)
         
-        # API Key
-        api_group = QGroupBox("OpenAI API Configuration")
+        # API Provider Selection
+        provider_group = QGroupBox("API Provider")
+        provider_layout = QHBoxLayout()
+        provider_layout.addWidget(QLabel("Provider:"))
+        self.provider_combo = QComboBox()
+        self.provider_combo.addItem("OpenAI (GPT-4/GPT-3.5)", "openai")
+        self.provider_combo.addItem("Anthropic (Claude)", "anthropic")
+        current_provider = self.config.get("api_provider", "openai")
+        index = self.provider_combo.findData(current_provider)
+        if index >= 0:
+            self.provider_combo.setCurrentIndex(index)
+        self.provider_combo.currentIndexChanged.connect(self.on_provider_changed)
+        provider_layout.addWidget(self.provider_combo)
+        provider_layout.addStretch()
+        provider_group.setLayout(provider_layout)
+        layout.addWidget(provider_group)
+        
+        # API Keys
+        api_group = QGroupBox("API Configuration")
         api_layout = QVBoxLayout()
         
-        api_key_layout = QHBoxLayout()
-        api_key_layout.addWidget(QLabel("API Key:"))
-        self.api_key_input = QLineEdit()
-        self.api_key_input.setEchoMode(QLineEdit.Password)
-        self.api_key_input.setText(self.config.get("api_key", ""))
-        self.api_key_input.setPlaceholderText("sk-...")
-        api_key_layout.addWidget(self.api_key_input)
+        # OpenAI API Key
+        openai_key_layout = QHBoxLayout()
+        openai_key_layout.addWidget(QLabel("OpenAI Key:"))
+        self.openai_key_input = QLineEdit()
+        self.openai_key_input.setEchoMode(QLineEdit.Password)
+        self.openai_key_input.setText(self.config.get("openai_api_key", self.config.get("api_key", "")))
+        self.openai_key_input.setPlaceholderText("sk-...")
+        openai_key_layout.addWidget(self.openai_key_input)
+        api_layout.addLayout(openai_key_layout)
         
-        self.save_api_key_btn = QPushButton("Save")
-        self.save_api_key_btn.clicked.connect(self.save_api_key)
-        api_key_layout.addWidget(self.save_api_key_btn)
+        # Anthropic API Key
+        anthropic_key_layout = QHBoxLayout()
+        anthropic_key_layout.addWidget(QLabel("Anthropic Key:"))
+        self.anthropic_key_input = QLineEdit()
+        self.anthropic_key_input.setEchoMode(QLineEdit.Password)
+        self.anthropic_key_input.setText(self.config.get("anthropic_api_key", ""))
+        self.anthropic_key_input.setPlaceholderText("sk-ant-...")
+        anthropic_key_layout.addWidget(self.anthropic_key_input)
+        api_layout.addLayout(anthropic_key_layout)
         
-        api_layout.addLayout(api_key_layout)
+        # Save button
+        self.save_api_keys_btn = QPushButton("Save API Keys")
+        self.save_api_keys_btn.clicked.connect(self.save_api_keys)
+        api_layout.addWidget(self.save_api_keys_btn)
         
         # Model selection
         model_layout = QHBoxLayout()
         model_layout.addWidget(QLabel("Model:"))
         self.model_combo = QComboBox()
-        for model_id, model_info in MODELS.items():
-            self.model_combo.addItem(model_info["description"], model_id)
-        current_model = self.config.get("model", "gpt-4")
-        index = self.model_combo.findData(current_model)
-        if index >= 0:
-            self.model_combo.setCurrentIndex(index)
+        self.update_model_combo()
         self.model_combo.currentIndexChanged.connect(self.save_model)
         model_layout.addWidget(self.model_combo)
         model_layout.addStretch()
@@ -207,14 +230,14 @@ class KritaGPTDocker(DockWidget):
         
         # Info
         info_label = QLabel(
-            "<b>Getting an API Key:</b><br>"
-            "1. Visit <a href='https://platform.openai.com'>platform.openai.com</a><br>"
-            "2. Sign in or create account<br>"
-            "3. Go to API Keys section<br>"
-            "4. Create new secret key<br><br>"
+            "<b>Getting API Keys:</b><br>"
+            "<b>OpenAI:</b> Visit <a href='https://platform.openai.com'>platform.openai.com</a><br>"
+            "<b>Anthropic:</b> Visit <a href='https://console.anthropic.com'>console.anthropic.com</a><br><br>"
             "<b>Costs:</b><br>"
             "GPT-4: ~$0.03 per command<br>"
-            "GPT-3.5: ~$0.001 per command"
+            "GPT-3.5: ~$0.001 per command<br>"
+            "Claude 3.5: ~$0.003 per command<br>"
+            "Claude Haiku: ~$0.00025 per command"
         )
         info_label.setOpenExternalLinks(True)
         info_label.setWordWrap(True)
@@ -247,18 +270,69 @@ class KritaGPTDocker(DockWidget):
         # This would be implemented with proper Qt key event handling
         pass
     
-    def initialize_gpt(self):
-        """Initialize GPT handler with saved API key"""
-        api_key = self.config.get("api_key", "")
+    def update_model_combo(self):
+        """Update model combo based on selected provider"""
+        self.model_combo.clear()
+        provider = self.provider_combo.currentData() if hasattr(self, 'provider_combo') else self.config.get("api_provider", "openai")
+        
+        if provider == "anthropic":
+            models = MODELS.get("anthropic", {})
+        else:
+            models = MODELS.get("openai", {})
+        
+        for model_id, model_info in models.items():
+            self.model_combo.addItem(model_info["description"], model_id)
+        
+        # Set current model
+        current_model = self.config.get("model", "gpt-4" if provider == "openai" else "claude-3-5-sonnet-20241022")
+        index = self.model_combo.findData(current_model)
+        if index >= 0:
+            self.model_combo.setCurrentIndex(index)
+    
+    @pyqtSlot(int)
+    def on_provider_changed(self, index):
+        """Handle provider change"""
+        provider = self.provider_combo.currentData()
+        self.config.set("api_provider", provider)
+        self.update_model_combo()
+        self.reinitialize_gpt()
+    
+    @pyqtSlot()
+    def save_api_keys(self):
+        """Save API keys to config"""
+        openai_key = self.openai_key_input.text().strip()
+        anthropic_key = self.anthropic_key_input.text().strip()
+        
+        self.config.set("openai_api_key", openai_key)
+        self.config.set("anthropic_api_key", anthropic_key)
+        
+        # Reinitialize GPT handler
+        self.reinitialize_gpt()
+        QMessageBox.information(self, "Success", "API keys saved successfully!")
+    
+    def reinitialize_gpt(self):
+        """Reinitialize GPT handler with current settings"""
+        provider = self.config.get("api_provider", "openai")
+        
+        if provider == "anthropic":
+            api_key = self.config.get("anthropic_api_key", "")
+        else:
+            api_key = self.config.get("openai_api_key", self.config.get("api_key", ""))
+        
         if api_key:
-            model = self.config.get("model", "gpt-4")
+            model = self.model_combo.currentData() if hasattr(self, 'model_combo') and self.model_combo.count() > 0 else self.config.get("model", "gpt-4")
             temperature = self.config.get("temperature", 0.1)
-            self.gpt_handler = GPTHandler(api_key, model, temperature)
-            self.status_label.setText("Ready (API key configured)")
+            self.gpt_handler = GPTHandler(provider, api_key, model, temperature)
+            self.status_label.setText(f"Ready ({provider.title()} configured)")
             self.status_label.setStyleSheet("QLabel { color: green; }")
         else:
-            self.status_label.setText("Please configure API key in Settings")
+            self.status_label.setText(f"Please configure {provider.title()} API key in Settings")
             self.status_label.setStyleSheet("QLabel { color: orange; }")
+            self.gpt_handler = None
+    
+    def initialize_gpt(self):
+        """Initialize GPT handler with saved API key"""
+        self.reinitialize_gpt()
     
     @pyqtSlot()
     def execute_command(self):
@@ -295,7 +369,7 @@ class KritaGPTDocker(DockWidget):
             result = self.gpt_handler.get_code(command)
             
             if not result["success"]:
-                self.show_error(f"GPT Error: {result['error']}")
+                self.show_error(f"API Error: {result['error']}")
                 return
             
             code = result["code"]
@@ -359,23 +433,6 @@ class KritaGPTDocker(DockWidget):
         self.output_text.append(f"<span style='color: red;'>✗ {message}</span>")
         self.status_label.setText("Error")
         self.status_label.setStyleSheet("QLabel { color: red; }")
-    
-    @pyqtSlot()
-    def save_api_key(self):
-        """Save API key to config"""
-        api_key = self.api_key_input.text().strip()
-        self.config.set("api_key", api_key)
-        
-        # Reinitialize GPT handler
-        if api_key:
-            model = self.config.get("model", "gpt-4")
-            temperature = self.config.get("temperature", 0.1)
-            self.gpt_handler = GPTHandler(api_key, model, temperature)
-            QMessageBox.information(self, "Success", "API key saved successfully!")
-        else:
-            self.gpt_handler = None
-        
-        self.initialize_gpt()
     
     @pyqtSlot(int)
     def save_model(self, index):

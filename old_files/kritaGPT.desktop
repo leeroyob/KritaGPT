@@ -1,8 +1,0 @@
-[Desktop Entry]
-Type=Service
-ServiceTypes=Krita/PythonPlugin
-X-KDE-Library=kritaGPT
-X-Python-2-Compatible=false
-X-Krita-Manual=README.md
-Name=KritaGPT
-Comment=Natural language commands for Krita - Control Krita with plain English using GPT-4
