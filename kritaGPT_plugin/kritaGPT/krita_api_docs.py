@@ -29,6 +29,10 @@ doc = app.activeDocument()  # Returns Document or None
 - doc.refreshProjection() - MUST CALL after any changes
 - doc.selection() → Selection or None - Get current selection
 - doc.setSelection(selection: Selection) - Set selection
+- doc.resize(x: int, y: int, width: int, height: int) - Resize canvas
+- doc.resizeImage(x: int, y: int, width: int, height: int) - Resize image
+- doc.scaleImage(width: int, height: int, xRes: int, yRes: int, strategy: str) - Scale image
+- doc.crop(x: int, y: int, width: int, height: int) - Crop document
 
 ### Node (Layer) Methods:
 - node.name() → str - Get layer name
@@ -90,6 +94,24 @@ app = Krita.instance()
 doc = app.activeDocument()
 if doc and doc.activeNode():
     doc.activeNode().move(100, 50)  # Right 100px, down 50px
+    doc.refreshProjection()
+```
+
+Resize canvas:
+```python
+app = Krita.instance()
+doc = app.activeDocument()
+if doc:
+    doc.resizeImage(0, 0, 1920, 1080)  # Resize to 1920x1080
+    doc.refreshProjection()
+```
+
+Crop canvas:
+```python
+app = Krita.instance()
+doc = app.activeDocument()
+if doc:
+    doc.crop(100, 100, 500, 500)  # Crop to 500x500 starting at (100,100)
     doc.refreshProjection()
 ```
 

@@ -80,8 +80,8 @@ STRICT INSTRUCTIONS:
 7. Always check if doc and nodes exist
 8. Always end with doc.refreshProjection()
 
-If a requested operation cannot be done with the documented API, respond with:
-# Cannot perform this operation - method not available in Krita API
+If a requested operation cannot be done with the documented API, respond with valid Python:
+print("Cannot perform this operation - method not available in Krita API")
 """
 
 # Model configurations
